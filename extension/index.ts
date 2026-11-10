@@ -17,7 +17,7 @@ import { stableTools } from "./tool-order.ts";
 import { toolDeclarations, normalizeOmpSystemDeltas, type OmpToolDeclaration } from "./omp-context.ts";
 import { OmpSessionLifecycle, type OmpProviderSessionState } from "./omp-session-lifecycle.ts";
 import { DEFAULT_USAGE_MODE, loadContextSettings } from "./context-settings.ts";
-import { selectRuntimeModel, type PublicCatalogModel } from "./model-catalog.ts";
+import { PARTNER_FALLBACK_MODELS, selectRuntimeModel, type PublicCatalogModel } from "./model-catalog.ts";
 import { TOOL_ROUTING } from "./tool-routing.ts";
 import { TranscriptRouting } from "./transcript-routing.ts";
 import { loadToolPolicy } from "./tool-policy.ts";
@@ -282,7 +282,7 @@ export async function registerOmpAdapter(pi: OmpHostApi, stateDir: string,
     cachePath,
     cleanup,
     prepareRuntime,
-    () => [...(FALLBACK_MODELS as PublicCatalogModel[])],
+    () => [...(FALLBACK_MODELS as PublicCatalogModel[]), ...PARTNER_FALLBACK_MODELS],
     requireAcpAuth,
     spawnConnection,
   );

@@ -14,6 +14,14 @@ test("Flash announced price change uses the UTC boundary", () => {
   assert.equal(officialApiCost("gemini-3.8-flash", Date.UTC(2027, 0, 1))?.input, 1.5);
 });
 
+test("Claude and GPT-OSS models price at their published API rates", () => {
+  assert.deepEqual(officialApiCost("claude-sonnet-5-5"), { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 });
+  assert.deepEqual(officialApiCost("claude-sonnet-5-5-high"), { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 });
+  assert.deepEqual(officialApiCost("claude-opus-5-5"), { input: 5, output: 25, cacheRead: 0.25, cacheWrite: 6.25 });
+  assert.deepEqual(officialApiCost("gpt-oss-120b"), { input: 0.15, output: 0.6, cacheRead: 0.075, cacheWrite: 0 });
+  assert.equal(officialApiCost("claude-sonnet-4-6"), undefined);
+});
+
 test("cost estimation charges reported cached and uncached input separately", () => {
   const usage: any = { input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000 };
   applyApiCostEstimate("gemini-4-argon", usage);

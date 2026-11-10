@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { projectCatalog, readModels, thoughtRoute, parseThoughtRoute, selectRuntimeModel } from "../extension/model-catalog.ts";
+import { PARTNER_FALLBACK_MODELS, projectCatalog, readModels, thoughtRoute, parseThoughtRoute, selectRuntimeModel } from "../extension/model-catalog.ts";
 import { advertisedRecord, choices, resolveSelection } from "../extension/selectors.ts";
 
 const state = (models: string[], levels = ["low", "medium", "high"]) => ({ configOptions: [
@@ -77,6 +77,30 @@ test("unversioned or older Gemini aliases keep conservative limits", () => {
     assert.equal(model.contextWindow, 32_768, `${model.id} must not claim a 1M window without a known version`);
     assert.equal(model.maxTokens, 8192);
   }
+});
+
+test("advertised Claude and GPT-OSS models carry their published limits", () => {
+  const models = projectCatalog([
+    "claude-sonnet-5-5", "claude-sonnet-5-5-high", "claude-opus-5-5", "claude-sonnet-4-6", "gpt-oss-120b",
+  ].map(modelId => ({ modelId, name: modelId, selector: true })));
+  const byId = new Map(models.map(model => [model.id, model]));
+  for (const id of ["claude-sonnet-5-5", "claude-opus-5-5"]) {
+    assert.equal(byId.get(id)?.contextWindow, 1_000_000, id);
+    assert.equal(byId.get(id)?.maxTokens, 64_000, id);
+  }
+  assert.equal(byId.get("claude-sonnet-4-6")?.contextWindow, 200_000);
+  assert.equal(byId.get("gpt-oss-120b")?.contextWindow, 131_072);
+  assert.equal(byId.get("gpt-oss-120b")?.reasoning, false);
+});
+
+test("partner fallback models mirror the advertised catalog", () => {
+  const ids = PARTNER_FALLBACK_MODELS.map(model => model.id);
+  assert.deepEqual(ids, ["claude-sonnet-5-5", "claude-opus-5-5", "gpt-oss-120b"]);
+  const sonnet = PARTNER_FALLBACK_MODELS[0];
+  assert.deepEqual(sonnet.thinking?.efforts, ["low", "medium", "high"]);
+  assert.equal(sonnet.thinkingLevelMap?.high, "claude-sonnet-5-5-high");
+  assert.equal(sonnet.contextWindow, 1_000_000);
+  for (const model of PARTNER_FALLBACK_MODELS) assert.equal(model.api, "antigravity-acp");
 });
 
 test("cache validation accepts all vendors and rejects malformed data", () => {

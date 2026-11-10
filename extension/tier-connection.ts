@@ -1,6 +1,7 @@
 // Compatibility seam for vendored pi-antigravity-acp-provider 0.1.15 / ACP server 1.4.x.
 // OMP effort -> vendored advertised legacy ID -> official model/thought selectors.
 import { AntigravityAcpConnection } from "./vendor/pi-antigravity-acp-provider/src/acp/connection.ts";
+import { quotaFromPrompt, type QuotaSnapshot } from "./vendor/pi-antigravity-acp-provider/src/status.ts";
 import { choices, resolveSelection, selector } from "./selectors.ts";
 import { installSessionRouting, normalizeInitializeResponse, type NativeToolMode } from "./tool-routing.ts";
 import { showAcpUpdate } from "./activity-presentation.ts";
@@ -36,6 +37,9 @@ export class TierConnection extends AntigravityAcpConnection {
   readonly contextUsage = new Map<string, { used: number; size: number }>();
   readonly compactions = new Map<string, Map<string, AcpCompactionRecord>>();
   readonly usageStatus = new Map<string, { source: string; cache: string; error?: string }>();
+  // Latest quota snapshot the ACP server attached to a prompt response
+  // (`_meta.quota`), keyed by ACP session id.
+  readonly quotaStatus = new Map<string, QuotaSnapshot>();
   private readonly ompContextWindows = new Map<string, number>();
   private readonly usageBaselines = new Map<string, SessionUsage>();
   private readonly usageCaptures = new Map<string, { text: string }>();
@@ -246,6 +250,7 @@ export class TierConnection extends AntigravityAcpConnection {
     this.compactions?.delete(id);
     this.ompContextWindows?.delete(id);
     this.usageStatus?.delete(id);
+    this.quotaStatus?.delete(id);
     this.usageBaselines?.delete(id);
     this.usageCommands?.delete(id);
     this.usageReads?.delete(id);
@@ -303,6 +308,7 @@ export class TierConnection extends AntigravityAcpConnection {
     this.compactions?.clear();
     this.ompContextWindows?.clear();
     this.usageStatus?.clear();
+    this.quotaStatus?.clear();
     this.usageBaselines?.clear();
     this.usageCommands?.clear();
     this.usageCaptures?.clear();
@@ -413,15 +419,22 @@ export class TierConnection extends AntigravityAcpConnection {
       this.diagnostics?.record("acp.prompt", performance.now() - started);
       if (abortedAt !== undefined && ["cancelled", "end_turn"].includes(response.stopReason)) this.diagnostics?.record("acp.cancel-confirmation", performance.now() - abortedAt);
       const withContext = <T extends { _meta?: Record<string, unknown> }>(value: T): T => {
+        // Antigravity reports plan quota on prompt responses; keep the latest
+        // snapshot per session for the usage command and OMP metadata.
+        const quota = quotaFromPrompt(value as Parameters<typeof quotaFromPrompt>[0]);
+        if (quota) this.quotaStatus.set(id, quota);
         const context = this.contextUsage.get(id);
-        if (!context) return value;
+        if (!context && !quota) return value;
         const ompContextWindow = this.ompContextWindows?.get(id);
         return {
           ...value,
           _meta: {
             ...value._meta,
-            ompContextTokens: alignContextTokens(context.used, context.size, ompContextWindow),
-            ompAcpContext: { used: context.used, size: context.size, ...(ompContextWindow ? { ompContextWindow } : {}) },
+            ...(quota ? { ompAcpQuota: quota } : {}),
+            ...(context ? {
+              ompContextTokens: alignContextTokens(context.used, context.size, ompContextWindow),
+              ompAcpContext: { used: context.used, size: context.size, ...(ompContextWindow ? { ompContextWindow } : {}) },
+            } : {}),
           },
         };
       };

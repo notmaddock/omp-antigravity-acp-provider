@@ -406,6 +406,7 @@ export function createAntigravityCommandHandler(deps: CommandControllerDeps) {
             ...usage,
             ompContextWindow: connection.getOmpContextWindow?.(sessionId),
           })),
+          quota: [...connection.quotaStatus].map(([sessionId, quota]) => ({ sessionId, ...quota })),
           compactions: [...connection.compactions].flatMap(([sessionId, records]) =>
             [...records.values()].map(record => ({ sessionId, ...record }))),
           accounting: [...connection.usageStatus.values()],
